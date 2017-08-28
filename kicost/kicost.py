@@ -109,6 +109,7 @@ from .newark.newark import get_newark_price_tiers, get_newark_part_num, get_newa
 from .mouser.mouser import get_mouser_price_tiers, get_mouser_part_num, get_mouser_qty_avail, get_mouser_part_html_tree
 from .rs.rs import get_rs_price_tiers, get_rs_part_num, get_rs_qty_avail, get_rs_part_html_tree
 from .farnell.farnell import get_farnell_price_tiers, get_farnell_part_num, get_farnell_qty_avail, get_farnell_part_html_tree
+from .tme.tme import get_tme_price_tiers, get_tme_part_num, get_tme_qty_avail, get_tme_part_html_tree
 
 
 # Generate a dictionary to translate all the different ways people might want
@@ -625,6 +626,14 @@ def create_spreadsheet(parts, spreadsheet_filename, user_fields, variant):
                 'align': 'center',
                 'valign': 'vcenter',
                 'bg_color': '#FF6600'  # Farnell/E14 orange.
+            }),
+            'tme': workbook.add_format({
+                'font_size': 14,
+                'font_color': 'white',
+                'bold': True,
+                'align': 'center',
+                'valign': 'vcenter',
+                'bg_color': '#FF0000' # TODO
             }),
 
             'local_lbl': [
