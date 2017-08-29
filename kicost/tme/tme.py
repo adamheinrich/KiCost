@@ -86,12 +86,14 @@ def __ajax_details(pn):
             headers={
                'X-Requested-With': 'XMLHttpRequest'
             })
-    # TODO: What if json() fails?
-    # TODO: What if json array does not contain required fields?
-    j = r.json()
-    html_tree = BeautifulSoup(j['Products'][0]['PriceTpl'].replace("\n", ""), "lxml")
-    quantity = j['Products'][0]['InStock']
-    return html_tree, quantity;
+    try:
+        p = r.json()['Products'][0]
+        html_tree = BeautifulSoup(p['PriceTpl'].replace("\n", ""), "lxml")
+        quantity = p['InStock']
+        return html_tree, quantity
+    except (ValueError, KeyError, IndexError):
+        logger.log(DEBUG_OBSESSIVE, 'Could not obtain AJAX data from TME!')
+        return None, None
 
 def get_tme_price_tiers(html_tree):
     '''Get the pricing tiers from the parsed tree of the TME product page.'''
@@ -101,15 +103,18 @@ def get_tme_price_tiers(html_tree):
         if pn == '':
             return price_tiers
 
-        html_tree, quantity = __ajax_details(pn)
+        ajax_tree, quantity = __ajax_details(pn)
+        if ajax_tree is None:
+            return price_tiers
 
         qty_strs = []
         price_strs = []
-        for tr in html_tree.find('tbody', id='prices_body').find_all('tr'):
-            # TODO: What if [0] or [2] do not exist?
+        for tr in ajax_tree.find('tbody', id='prices_body').find_all('tr'):
             td = tr.find_all('td')
-            qty_strs.append(td[0].text)
-            price_strs.append(td[2].text)
+            if len(td) == 3:
+                qty_strs.append(td[0].text)
+                price_strs.append(td[2].text)
+
         qtys_prices = list(zip(qty_strs, price_strs))
         for qty_str, price_str in qtys_prices:
             try:
@@ -128,9 +133,6 @@ def get_tme_price_tiers(html_tree):
 def get_tme_part_num(html_tree):
     '''Get the part number from the TME product page.'''
     try:
-        #tr = html_tree.find('div', class_="col-md-9 symbols").find_all('tr')
-        # TODO: Exception when [1] is not found?
-        #return re.sub('\n', '', tr[1].find('td', class_='value').text)
         return html_tree.find('td', class_="pip-product-symbol").text
     except AttributeError:
         logger.log(DEBUG_OBSESSIVE, 'No TME part number found!')
@@ -145,6 +147,8 @@ def get_tme_qty_avail(html_tree):
         return None
 
     ajax_tree, qty_str = __ajax_details(pn)
+    if qty_str is None:
+        return None
 
     try:
         return int(qty_str)
@@ -211,8 +215,10 @@ def get_tme_part_html_tree(dist, pn, extra_search_terms='', url=None, descend=2,
                     class_=('product-row'))
 
             # Extract the product links for the part numbers from the table.
-            # TODO: What if [1] does not exist?
-            product_links = [p.find('div', class_='manufacturer').find_all('a')[1] for p in products]
+            product_links = []
+            for p in products:
+                for a in p.find('div', class_='manufacturer').find_all('a'):
+                    product_links.append(a)
 
             # Extract all the part numbers from the text portion of the links.
             part_numbers = [l.text for l in product_links]
