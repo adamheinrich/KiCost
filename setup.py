@@ -25,7 +25,6 @@ requirements = [
     'yattag >= 1.5.2',
     'tqdm >= 4.4.0',
     'CurrencyConverter >= 0.5',
-    'requests >= 2.18.4',
 ]
 
 test_requirements = [

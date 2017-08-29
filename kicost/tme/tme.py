@@ -36,8 +36,8 @@ import future
 
 import re
 import difflib
+import json
 import logging
-import requests
 from bs4 import BeautifulSoup
 import http.client # For web scraping exceptions.
 
@@ -75,19 +75,26 @@ distributors.update(
 )
 
 def __ajax_details(pn):
-    payload = {
+    data = urllib.urlencode({
         'symbol': pn,
         'currency': 'USD'
-    }
-    # TODO: Use a different method so that the requests module is not needed
-    r = requests.post(
-            url='http://www.tme.eu/en/_ajax/ProductInformationPage/_getStocks.html',
-            data=payload,
-            headers={
-               'X-Requested-With': 'XMLHttpRequest'
-            })
+    })
+    req = FakeBrowser('http://www.tme.eu/en/_ajax/ProductInformationPage/_getStocks.html')
+    req.add_header('X-Requested-With', 'XMLHttpRequest')
+    for _ in range(HTML_RESPONSE_RETRIES):
+        try:
+            response = urlopen(req, data)
+            r = response.read()
+            break
+        except WEB_SCRAPE_EXCEPTIONS:
+            logger.log(DEBUG_DETAILED,'Exception while web-scraping {} from {}'.format(pn, dist))
+            pass
+    else: # Couldn't get a good read from the website.
+        logger.log(DEBUG_OBSESSIVE,'No AJAX data for {} from {}'.format(pn, dist))
+        return None, None
+
     try:
-        p = r.json()['Products'][0]
+        p = json.loads(r)['Products'][0]
         html_tree = BeautifulSoup(p['PriceTpl'].replace("\n", ""), "lxml")
         quantity = p['InStock']
         return html_tree, quantity
