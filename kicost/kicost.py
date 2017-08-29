@@ -633,7 +633,7 @@ def create_spreadsheet(parts, spreadsheet_filename, user_fields, variant):
                 'bold': True,
                 'align': 'center',
                 'valign': 'vcenter',
-                'bg_color': '#FF0000' # TODO
+                'bg_color': '#0C4DA1'  # TME blue
             }),
 
             'local_lbl': [
