@@ -231,6 +231,8 @@ def get_tme_part_html_tree(dist, pn, extra_search_terms='', url=None, descend=2,
                 if (not l['href'].startswith('./katalog')) and l.text == match:
                     # Get the tree for the linked-to page and return that.
                     logger.log(DEBUG_OBSESSIVE,'Selecting {} from product table for {} from {}'.format(l.text, pn, dist))
+                    # TODO: Reduce the number of HTTP request per part. One req
+                    # for table plus one for AJAX might be enough:
                     return get_tme_part_html_tree(dist, pn, extra_search_terms,
                                                   url=l['href'],
                                                   descend=descend-1)
