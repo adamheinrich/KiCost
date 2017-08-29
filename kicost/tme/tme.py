@@ -79,6 +79,7 @@ def __ajax_details(pn):
         'symbol': pn,
         'currency': 'USD'
     }
+    # TODO: Use a different method so that the requests module is not needed
     r = requests.post(
             url='http://www.tme.eu/en/_ajax/ProductInformationPage/_getStocks.html',
             data=payload,
