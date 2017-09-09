@@ -14,47 +14,19 @@ import future
 
 import re
 import difflib
-import logging
 from bs4 import BeautifulSoup
 import http.client # For web scraping exceptions.
-
-try:
-    from urllib.parse import urlencode, quote as urlquote, urlsplit, urlunsplit
-    import urllib.request
-    from urllib.request import urlopen, Request
-except ImportError:
-    from urlparse import quote as urlquote, urlsplit, urlunsplit
-    from urllib import urlencode
-    from urllib2 import urlopen, Request
-    
-from ..kicost import PartHtmlError, FakeBrowser
-from ..kicost import logger, DEBUG_OVERVIEW, DEBUG_DETAILED, DEBUG_OBSESSIVE
-
+from .. import urlquote, urlsplit, urlunsplit, urlopen, Request
+from .. import HTML_RESPONSE_RETRIES
+from .. import WEB_SCRAPE_EXCEPTIONS
+from .. import FakeBrowser
+from ...kicost import PartHtmlError
+from ...kicost import logger, DEBUG_OVERVIEW, DEBUG_DETAILED, DEBUG_OBSESSIVE
 from currency_converter import CurrencyConverter
-
-__author__='Giacinto Luigi Cerone'
-
-HTML_RESPONSE_RETRIES = 2 # Num of retries for getting part data web page.
-
-WEB_SCRAPE_EXCEPTIONS = (urllib.request.URLError, http.client.HTTPException)
-
 currency = CurrencyConverter()
 
-from ..kicost import distributors
-distributors.update(
-    {
-        'rs': {
-            'scrape': 'web',
-            'function': 'rs',
-            'label': 'RS Components',
-            'order_cols': ['part_num', 'purch', 'refs'],
-            'order_delimiter': ' '
-        }
-    }
-)
 
-
-def get_rs_price_tiers(html_tree):
+def get_price_tiers(html_tree):
     '''Get the pricing tiers from the parsed tree of the RS Components product page.'''
     price_tiers = {}
     
@@ -81,7 +53,7 @@ def get_rs_price_tiers(html_tree):
         return price_tiers  # Return empty price tiers.
     return price_tiers
     
-def get_rs_part_num(html_tree):
+def get_part_num(html_tree):
     '''Get the part number from the farnell product page.'''
     try:
         pn_str = html_tree.find('span', class_='keyValue bold', itemprop='sku').text
@@ -92,14 +64,13 @@ def get_rs_part_num(html_tree):
     except AttributeError:
         return '' # No ProductDescription found in page.
 
-def get_rs_qty_avail(html_tree):
+def get_qty_avail(html_tree):
     '''Get the available quantity of the part from the farnell product page.'''
         
     try:
         # Note that 'availability' is misspelled in the container class name!        
         qty_str = html_tree.find('div', class_='floatLeft stockMessaging availMessageDiv bottom5').text
     except (AttributeError, ValueError):
-        print('no quantity')
         # No quantity found (not even 0) so this is probably a non-stocked part.
         # Return None so the part won't show in the spreadsheet for this dist.
         return None
@@ -111,7 +82,7 @@ def get_rs_qty_avail(html_tree):
         # Return None so the part won't show in the spreadsheet for this dist.
         return None
 
-def get_rs_part_html_tree(dist, pn, extra_search_terms='', url=None, descend=2, local_part_html=None):
+def get_part_html_tree(dist, pn, extra_search_terms='', url=None, descend=2, local_part_html=None):
     '''Find the RS Components HTML page for a part number and return the URL and parse tree.'''
             
     # Use the part number to lookup the part using the site search function, unless a starting url was given.
@@ -169,7 +140,7 @@ def get_rs_part_html_tree(dist, pn, extra_search_terms='', url=None, descend=2, 
                 try:
                     product_links.append(p.find('a',class_='primarySearchLink')['href'])
                     # Up to now get the first url found in the list. i.e. do not choose the url based on the stock type (e.g. single unit, reel etc.)
-                    return get_rs_part_html_tree(dist, pn, extra_search_terms,url=product_links[0], descend=descend-1)
+                    return get_part_html_tree(dist, pn, extra_search_terms,url=product_links[0], descend=descend-1)
                 except AttributeError:
                     continue
                 except TypeError:
@@ -210,7 +181,7 @@ def get_rs_part_html_tree(dist, pn, extra_search_terms='', url=None, descend=2, 
             #~ for l in product_links:
                 #~ if l.text == match:
                     #~ # Get the tree for the linked-to page and return that.
-                    #~ return get_rs_part_html_tree(dist, pn, extra_search_terms,
+                    #~ return get_part_html_tree(dist, pn, extra_search_terms,
                                 #~ url=l['href'], descend=descend-1)
 
     # I don't know what happened here, so give up.
@@ -219,14 +190,14 @@ def get_rs_part_html_tree(dist, pn, extra_search_terms='', url=None, descend=2, 
 
 if __name__=='__main__':
 	
-	#~ html_tree=get_rs_part_html_tree(dist='rs',pn='MSP430F5438AIPZ')
-	#~ html_tree=get_rs_part_html_tree(dist='rs',pn='CC3200-LAUNCHXL')
-    #~ html_tree=get_rs_part_html_tree(dist='rs',pn='LM358PW')
-    html_tree=get_rs_part_html_tree(dist='rs',pn='MCP1252-33X50I/MS')
+	#~ html_tree=get_part_html_tree(dist='rs',pn='MSP430F5438AIPZ')
+	#~ html_tree=get_part_html_tree(dist='rs',pn='CC3200-LAUNCHXL')
+    #~ html_tree=get_part_html_tree(dist='rs',pn='LM358PW')
+    html_tree=get_part_html_tree(dist='rs',pn='MCP1252-33X50I/MS')
     
-    pt=get_rs_price_tiers(html_tree[0])
-    qt=get_rs_qty_avail(html_tree[0])
-    pn=get_rs_part_num(html_tree[0])
+    pt=get_price_tiers(html_tree[0])
+    qt=get_qty_avail(html_tree[0])
+    pn=get_part_num(html_tree[0])
     print('****************')
     print(pt)
     print('****************')

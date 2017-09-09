@@ -35,32 +35,19 @@ standard_library.install_aliases()
 import future
 
 import re
-import logging
+import difflib
 from bs4 import BeautifulSoup
 import http.client # For web scraping exceptions.
-
-try:
-    from urllib.parse import urlencode, quote as urlquote, urlsplit, urlunsplit
-    import urllib.request
-    from urllib.request import urlopen, Request
-except ImportError:
-    from urlparse import quote as urlquote, urlsplit, urlunsplit
-    from urllib import urlencode
-    from urllib2 import urlopen, Request
-
-from ..kicost import PartHtmlError, FakeBrowser
-from ..kicost import logger, DEBUG_OVERVIEW, DEBUG_DETAILED, DEBUG_OBSESSIVE
-
-from currency_converter import CurrencyConverter
-
-SEPRTR = ':'  # Delimiter between library:component, distributor:field, etc.
-
-HTML_RESPONSE_RETRIES = 2 # Num of retries for getting part data web page.
-
-WEB_SCRAPE_EXCEPTIONS = (urllib.request.URLError, http.client.HTTPException)
+from .. import urlquote, urlsplit, urlunsplit, urlopen, Request
+from .. import HTML_RESPONSE_RETRIES
+from .. import WEB_SCRAPE_EXCEPTIONS
+from .. import FakeBrowser
+from ...kicost import PartHtmlError
+from ...kicost import logger, DEBUG_OVERVIEW, DEBUG_DETAILED, DEBUG_OBSESSIVE
+from ...kicost import SEPRTR
 
 
-def get_local_price_tiers(html_tree):
+def get_price_tiers(html_tree):
     '''Get the pricing tiers from the parsed tree of the local product page.'''
     price_tiers = {}
     try:
@@ -76,7 +63,7 @@ def get_local_price_tiers(html_tree):
     return price_tiers
 
 
-def get_local_part_num(html_tree):
+def get_part_num(html_tree):
     '''Get the part number from the local product page.'''
     try:
         part_num_str = html_tree.find('div', class_='cat#').text
@@ -85,7 +72,7 @@ def get_local_part_num(html_tree):
         return ''
 
 
-def get_local_qty_avail(html_tree):
+def get_qty_avail(html_tree):
     '''Get the available quantity of the part from the local product page.'''
     try:
         qty_str = html_tree.find('div', class_='quantity').text
@@ -102,7 +89,7 @@ def get_local_qty_avail(html_tree):
         return 0
 
 
-def get_local_part_html_tree(dist, pn, extra_search_terms='', url=None, local_part_html=None):
+def get_part_html_tree(dist, pn, extra_search_terms='', url=None, descend=None, local_part_html=None):
     '''Extract the HTML tree from the HTML page for local parts.'''
 
     # Extract the HTML tree from the local part HTML page.
