@@ -37,48 +37,21 @@ import future
 import re
 import difflib
 import json
-import logging
 from bs4 import BeautifulSoup
 import http.client # For web scraping exceptions.
-
-try:
-    from urllib.parse import urlencode, quote as urlquote, urlsplit, urlunsplit
-    import urllib.request
-    from urllib.request import urlopen, Request
-except ImportError:
-    from urlparse import quote as urlquote, urlsplit, urlunsplit
-    from urllib import urlencode
-    from urllib2 import urlopen, Request
-
-from ..kicost import PartHtmlError, FakeBrowser
-from ..kicost import logger, DEBUG_OVERVIEW, DEBUG_DETAILED, DEBUG_OBSESSIVE
-
-from currency_converter import CurrencyConverter
-
-SEPRTR = ':'  # Delimiter between library:component, distributor:field, etc.
-
-HTML_RESPONSE_RETRIES = 2 # Num of retries for getting part data web page.
-
-WEB_SCRAPE_EXCEPTIONS = (urllib.request.URLError, http.client.HTTPException)
-
-from ..kicost import distributors
-distributors.update(
-    {
-        'tme': {
-            'scrape': 'web',
-            'function': 'tme',
-            'label': 'TME',
-            'order_cols': ['part_num', 'purch', 'refs'],
-            'order_delimiter': ' '
-        }
-    }
-)
+from .. import urlencode, urlquote, urlsplit, urlunsplit, urlopen, Request
+from .. import HTML_RESPONSE_RETRIES
+from .. import WEB_SCRAPE_EXCEPTIONS
+from .. import FakeBrowser
+from ...kicost import PartHtmlError
+from ...kicost import logger, DEBUG_OVERVIEW, DEBUG_DETAILED, DEBUG_OBSESSIVE
 
 def __ajax_details(pn):
-    data = urllib.urlencode({
+    '''Load part details from TME using XMLHttpRequest'''
+    data = urlencode({
         'symbol': pn,
         'currency': 'USD'
-    })
+    }).encode("utf-8")
     req = FakeBrowser('http://www.tme.eu/en/_ajax/ProductInformationPage/_getStocks.html')
     req.add_header('X-Requested-With', 'XMLHttpRequest')
     for _ in range(HTML_RESPONSE_RETRIES):
@@ -102,11 +75,11 @@ def __ajax_details(pn):
         logger.log(DEBUG_OBSESSIVE, 'Could not obtain AJAX data from TME!')
         return None, None
 
-def get_tme_price_tiers(html_tree):
+def get_price_tiers(html_tree):
     '''Get the pricing tiers from the parsed tree of the TME product page.'''
     price_tiers = {}
     try:
-        pn = get_tme_part_num(html_tree)
+        pn = get_part_num(html_tree)
         if pn == '':
             return price_tiers
 
@@ -137,7 +110,7 @@ def get_tme_price_tiers(html_tree):
     return price_tiers
 
 
-def get_tme_part_num(html_tree):
+def get_part_num(html_tree):
     '''Get the part number from the TME product page.'''
     try:
         return html_tree.find('td', class_="pip-product-symbol").text
@@ -146,9 +119,9 @@ def get_tme_part_num(html_tree):
         return ''
 
 
-def get_tme_qty_avail(html_tree):
+def get_qty_avail(html_tree):
     '''Get the available quantity of the part from the TME product page.'''
-    pn = get_tme_part_num(html_tree)
+    pn = get_part_num(html_tree)
     if pn == '':
         logger.log(DEBUG_OBSESSIVE, 'No TME part quantity found!')
         return None
@@ -166,7 +139,7 @@ def get_tme_qty_avail(html_tree):
         return None
 
 
-def get_tme_part_html_tree(dist, pn, extra_search_terms='', url=None, descend=2, local_part_html=None):
+def get_part_html_tree(dist, pn, extra_search_terms='', url=None, descend=2, local_part_html=None):
     '''Find the TME HTML page for a part number and return the URL and parse tree.'''
 
     # Use the part number to lookup the part using the site search function, unless a starting url was given.
@@ -238,11 +211,18 @@ def get_tme_part_html_tree(dist, pn, extra_search_terms='', url=None, descend=2,
                 if (not l['href'].startswith('./katalog')) and l.text == match:
                     # Get the tree for the linked-to page and return that.
                     logger.log(DEBUG_OBSESSIVE,'Selecting {} from product table for {} from {}'.format(l.text, pn, dist))
-                    # TODO: Reduce the number of HTTP request per part. One req
-                    # for table plus one for AJAX might be enough:
-                    return get_tme_part_html_tree(dist, pn, extra_search_terms,
-                                                  url=l['href'],
-                                                  descend=descend-1)
+                    # TODO: The current implementation does up to four HTTP
+                    # requests per part (search, part details page for TME P/N,
+                    # XHR for pricing information, and XHR for stock
+                    # availability). This is mainly for the compatibility with
+                    # other distributor implementations (html_tree gets passed
+                    # to all functions).
+                    # A modified implementation (which would pass JSON data
+                    # obtained by the XHR instead of the HTML DOM tree) might be
+                    # able to do the same with just two requests (search for TME
+                    # P/N, XHR for pricing and stock availability).
+                    return get_part_html_tree(dist, pn, extra_search_terms,
+                                              url=l['href'], descend=descend-1)
 
     # I don't know what happened here, so give up.
     logger.log(DEBUG_OBSESSIVE,'Unknown error for {} from {}'.format(pn, dist))
