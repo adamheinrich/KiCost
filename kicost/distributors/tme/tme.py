@@ -67,6 +67,7 @@ def __ajax_details(pn):
         return None, None
 
     try:
+        r = r.decode('utf-8')  # Convert bytes to string in Python 3.
         p = json.loads(r)['Products'][0]
         html_tree = BeautifulSoup(p['PriceTpl'].replace("\n", ""), "lxml")
         quantity = p['InStock']
@@ -197,7 +198,7 @@ def get_part_html_tree(dist, pn, extra_search_terms='', url=None, descend=2, loc
             # Extract the product links for the part numbers from the table.
             product_links = []
             for p in products:
-                for a in p.find('div', class_='manufacturer').find_all('a'):
+                for a in p.find('td', class_='product').find_all('a'):
                     product_links.append(a)
 
             # Extract all the part numbers from the text portion of the links.
